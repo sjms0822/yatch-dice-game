@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>요트 다이스 (Yacht Dice) - 3D 물리 시뮬레이션</title>
+  <link rel="stylesheet" href="./src/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- 상단 헤더 바 -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1 class="logo">
+          <span class="logo-icon">🎲</span>
+          <span class="logo-text">YACHT DICE</span>
+        </h1>
+        <div class="mode-selector">
+          <button id="btn-mode-ai" class="mode-btn active">🤖 AI 1:1 대전</button>
+          <button id="btn-mode-pvp" class="mode-btn">👥 2인 로컬 대전</button>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="round-indicator">
+          <span class="label">ROUND</span>
+          <span id="round-display" class="value">1 / 12</span>
+        </div>
+        <div class="turn-indicator">
+          <span class="label">현재 차례:</span>
+          <span id="current-turn-badge" class="turn-badge player-1">플레이어 1</span>
+        </div>
+        <div id="speech-box" class="speech-box">주사위를 굴려주세요!</div>
+      </div>
+
+      <div class="header-right">
+        <button id="btn-help" class="utility-btn" title="요트 다이스 룰북">📖 룰북</button>
+        <button id="btn-mute" class="utility-btn" title="사운드 온/오프">🔊 사운드</button>
+        <button id="btn-restart" class="utility-btn btn-danger" title="새 게임 시작">🔄 새 게임</button>
+      </div>
+    </header>
+
+    <!-- 메인 대시보드 (3D 뷰포트 + 점수판) -->
+    <main class="main-content">
+      <!-- 좌측 3D 물리 다이스 아레나 -->
+      <section class="arena-section">
+        <div class="canvas-wrapper">
+          <div id="dice-canvas-container"></div>
+          <div class="camera-hint">💡 주사위를 직접 마우스로 클릭하여 킵(보관)할 수 있습니다</div>
+        </div>
+
+        <!-- 하단 주사위 컨트롤 및 킵 트레이 -->
+        <div class="arena-controls">
+          <div class="keep-tray-wrapper">
+            <div class="keep-tray-header">
+              <span class="keep-tray-title">주사위 보관함 (KEEP TRAY)</span>
+              <span class="keep-tray-desc">다시 굴리지 않고 유지할 주사위를 선택하세요</span>
+            </div>
+            <div class="keep-slots-container">
+              <div class="keep-slot" data-index="0">
+                <span class="slot-label">#1</span>
+                <div class="slot-dice-num">1</div>
+                <span class="slot-status-badge">ROLL</span>
+              </div>
+              <div class="keep-slot" data-index="1">
+                <span class="slot-label">#2</span>
+                <div class="slot-dice-num">2</div>
+                <span class="slot-status-badge">ROLL</span>
+              </div>
+              <div class="keep-slot" data-index="2">
+                <span class="slot-label">#3</span>
+                <div class="slot-dice-num">3</div>
+                <span class="slot-status-badge">ROLL</span>
+              </div>
+              <div class="keep-slot" data-index="3">
+                <span class="slot-label">#4</span>
+                <div class="slot-dice-num">4</div>
+                <span class="slot-status-badge">ROLL</span>
+              </div>
+              <div class="keep-slot" data-index="4">
+                <span class="slot-label">#5</span>
+                <div class="slot-dice-num">5</div>
+                <span class="slot-status-badge">ROLL</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-panel">
+            <div class="rolls-counter">
+              <div class="rolls-text">남은 굴리기: <span id="rolls-left-display">3</span>/3</div>
+              <div class="roll-pins">
+                <div class="roll-pin active"></div>
+                <div class="roll-pin active"></div>
+                <div class="roll-pin active"></div>
+              </div>
+            </div>
+            <button id="btn-roll" class="btn-roll-main">
+              <span class="icon">🎲</span> 주사위 굴리기 (1회차)
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 우측 스마트 점수판 -->
+      <aside class="scorecard-section">
+        <div class="scorecard-container">
+          <div class="scorecard-header">
+            <h3>📊 공식 스코어보드</h3>
+            <span class="scorecard-sub">원하는 족보 칸을 클릭하여 점수를 확정하세요</span>
+          </div>
+
+          <table class="score-table">
+            <thead>
+              <tr>
+                <th class="col-category">족보 (카테고리)</th>
+                <th id="col-player1" class="col-score active-col">
+                  <div id="player1-header-name">플레이어 1</div>
+                </th>
+                <th id="col-player2" class="col-score">
+                  <div id="player2-header-name">인공지능 AI</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 상단 섹션 -->
+              <tr class="section-divider">
+                <td colspan="3">상단 영역 (주사위 눈의 총합)</td>
+              </tr>
+              <tr>
+                <td class="cat-name"><span class="cat-pip">1</span> 에이스 (Aces, 1)</td>
+                <td id="score-1-aces" class="score-cell">-</td>
+                <td id="score-2-aces" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name"><span class="cat-pip">2</span> 듀스 (Deuces, 2)</td>
+                <td id="score-1-deuces" class="score-cell">-</td>
+                <td id="score-2-deuces" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name"><span class="cat-pip">3</span> 트레이 (Threes, 3)</td>
+                <td id="score-1-threes" class="score-cell">-</td>
+                <td id="score-2-threes" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name"><span class="cat-pip">4</span> 포 (Fours, 4)</td>
+                <td id="score-1-fours" class="score-cell">-</td>
+                <td id="score-2-fours" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name"><span class="cat-pip">5</span> 파이브 (Fives, 5)</td>
+                <td id="score-1-fives" class="score-cell">-</td>
+                <td id="score-2-fives" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name"><span class="cat-pip">6</span> 식스 (Sixes, 6)</td>
+                <td id="score-1-sixes" class="score-cell">-</td>
+                <td id="score-2-sixes" class="score-cell">-</td>
+              </tr>
+              
+              <!-- 상단 소계 및 보너스 -->
+              <tr class="subtotal-row">
+                <td class="cat-name">상단 소계 (목표: 63점)</td>
+                <td id="subtotal-1" class="subtotal-cell">0 / 63</td>
+                <td id="subtotal-2" class="subtotal-cell">0 / 63</td>
+              </tr>
+              <tr class="bonus-row">
+                <td class="cat-name">
+                  <span class="bonus-badge">⭐ 상단 보너스 (+35)</span>
+                </td>
+                <td id="bonus-1" class="bonus-cell">0 (남은 점수: 63)</td>
+                <td id="bonus-2" class="bonus-cell">0 (남은 점수: 63)</td>
+              </tr>
+
+              <!-- 하단 섹션 -->
+              <tr class="section-divider">
+                <td colspan="3">하단 영역 (특수 조합)</td>
+              </tr>
+              <tr>
+                <td class="cat-name">초이스 (Choice, 5개 총합)</td>
+                <td id="score-1-choice" class="score-cell">-</td>
+                <td id="score-2-choice" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name">4 오브 어 카인드 (동일 4개 이상, 5개 총합)</td>
+                <td id="score-1-fourOfAKind" class="score-cell">-</td>
+                <td id="score-2-fourOfAKind" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name">풀하우스 (3개 + 2개, 5개 총합)</td>
+                <td id="score-1-fullHouse" class="score-cell">-</td>
+                <td id="score-2-fullHouse" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name">스몰 스트레이트 (연속 4개, 15점)</td>
+                <td id="score-1-smallStraight" class="score-cell">-</td>
+                <td id="score-2-smallStraight" class="score-cell">-</td>
+              </tr>
+              <tr>
+                <td class="cat-name">라지 스트레이트 (연속 5개, 30점)</td>
+                <td id="score-1-largeStraight" class="score-cell">-</td>
+                <td id="score-2-largeStraight" class="score-cell">-</td>
+              </tr>
+              <tr class="yacht-row">
+                <td class="cat-name">
+                  <span class="yacht-badge">🏆 요트 (5개 일치, 50점)</span>
+                </td>
+                <td id="score-1-yacht" class="score-cell">-</td>
+                <td id="score-2-yacht" class="score-cell">-</td>
+              </tr>
+
+              <!-- 하단 소계 -->
+              <tr class="subtotal-row">
+                <td class="cat-name">하단 소계</td>
+                <td id="lower-subtotal-1" class="subtotal-cell">0</td>
+                <td id="lower-subtotal-2" class="subtotal-cell">0</td>
+              </tr>
+
+              <!-- 최종 총점 -->
+              <tr class="grand-total-row">
+                <td class="cat-name">최종 총점 (TOTAL)</td>
+                <td id="grand-total-1" class="grand-total-cell">0</td>
+                <td id="grand-total-2" class="grand-total-cell">0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 룰북 모달 창 -->
+    <div id="rules-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>📖 요트 다이스 (Yacht Dice) 공식 룰북</h2>
+          <button id="btn-close-modal" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="rule-block">
+            <h3>1. 게임 개요</h3>
+            <p>5개의 6면체 주사위를 굴려 총 12개의 족보 칸을 채워 가장 높은 총점을 획득하는 플레이어가 승리합니다.</p>
+          </div>
+          <div class="rule-block">
+            <h3>2. 턴 진행 방식</h3>
+            <p>• 자기 차례가 되면 주사위 5개를 굴립니다.</p>
+            <p>• 마음에 드는 주사위는 <strong>KEEP(보관)</strong>해두고, 나머지 주사위만 최대 <strong>2번 더</strong> 다시 굴릴 수 있습니다. (턴당 최대 3회 굴림)</p>
+            <p>• 굴리기가 끝나거나 원하는 족보가 나오면 점수판의 빈 칸 중 하나를 골라 점수를 기록합니다. 조건에 맞지 않아도 기록할 수 있으나 <strong>0점</strong>으로 처리됩니다.</p>
+          </div>
+          <div class="rule-block">
+            <h3>3. 상단 보너스 (중요 ⭐)</h3>
+            <p>상단 영역(Aces ~ Sixes) 6개 칸 점수의 총합이 <strong>63점 이상</strong>이면 게임 종료 시 <strong>보너스 35점</strong>을 추가로 획득합니다! (각 칸마다 평균 3개씩 나오면 정확히 63점 달성)</p>
+          </div>
+          <div class="rule-block">
+            <h3>4. 하단 특수 족보</h3>
+            <ul class="rule-list">
+              <li><strong>초이스 (Choice):</strong> 조건 없이 주사위 5개의 눈 총합</li>
+              <li><strong>4 오브 어 카인드:</strong> 같은 눈이 4개 이상일 때 <strong>5개 주사위 눈의 총합</strong></li>
+              <li><strong>풀하우스:</strong> 같은 눈 3개 + 2개 조합일 때 <strong>5개 주사위 눈의 총합</strong> (요트도 인정)</li>
+              <li><strong>스몰 스트레이트:</strong> 연속된 4개 숫자 (1-2-3-4, 2-3-4-5, 3-4-5-6) 일 때 <strong>고정 15점</strong></li>
+              <li><strong>라지 스트레이트:</strong> 연속된 5개 숫자 (1-2-3-4-5, 2-3-4-5-6) 일 때 <strong>고정 30점</strong></li>
+              <li><strong>요트 (Yacht):</strong> 5개 주사위의 눈이 모두 일치할 때 <strong>고정 50점!</strong></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 게임 오버 결과 모달 -->
+    <div id="game-over-modal" class="modal-overlay">
+      <div class="modal-box result-modal">
+        <h2 id="game-over-title" class="result-title">🏆 승리! 🏆</h2>
+        <div id="game-over-details" class="result-content"></div>
+        <button id="btn-play-again" class="btn-play-again">다시 플레이하기 🎲</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
